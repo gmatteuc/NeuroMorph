@@ -1,0 +1,15 @@
+# ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# ignore data and pretrained directories
+data/
+pretrained/
+
+# ignore other common files
+*.log
+*.tmp
