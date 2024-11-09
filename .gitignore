@@ -9,6 +9,7 @@ __pycache__/
 # ignore data and pretrained directories
 data/
 pretrained/
+output/
 
 # ignore other common files
 *.log
