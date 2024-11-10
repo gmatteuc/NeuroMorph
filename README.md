@@ -2,6 +2,8 @@
 
 This repository is a side project by Giulio Matteucci aimed at exploring multimodal associations with a convolutional denoising autoencoder. The model is trained on the MNIST dataset, with an added contextual input representing a secondary sensory modality. This context, consistently paired with a specific digit (e.g., "3"), acts as a prior to bias reconstruction under noisy conditions. The goal is to simulate how contextual cues can influence perception, serving as a computational proof of concept for visuo-tactile association experiments in neuroscience. The training consists of a baseline phase for general denoising, followed by an association phase where context strongly correlates with one digit to create an influence in ambiguous scenarios. This setup provides a foundational model for studying sensory integration and its potential effects on perception. In the future more in depth analysis of the effect of contextual input on the autoencoder representation as well as simulated psychophyiscs experiments will be added.
 
+![contextual_autoencoder](https://github.com/user-attachments/assets/91106d0d-da86-4f91-b7d8-db4a679a6292)
+
 Here a presentation illustrating some of the key results: https://docs.google.com/presentation/d/1uNlbAPi-_Sjb5JjfNdis1I3rWV5Bi7w2/edit?usp=sharing&ouid=114959095852310266125&rtpof=true&sd=true
 
 TODO 10/11/2024:
