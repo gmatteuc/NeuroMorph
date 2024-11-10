@@ -1,3 +1,13 @@
 # NeuroMorph
 
 This repository is a side project by Giulio Matteucci aimed at exploring multimodal associations with a convolutional denoising autoencoder. The model is trained on the MNIST dataset, with an added contextual input representing a secondary sensory modality. This context, consistently paired with a specific digit (e.g., "3"), acts as a prior to bias reconstruction under noisy conditions. The goal is to simulate how contextual cues can influence perception, serving as a computational proof of concept for visuo-tactile association experiments in neuroscience. The training consists of a baseline phase for general denoising, followed by an association phase where context strongly correlates with one digit to create an influence in ambiguous scenarios. This setup provides a foundational model for studying sensory integration and its potential effects on perception. In the future more in depth analysis of the effect of contextual input on the autoencoder representation as well as simulated psychophyiscs experiments will be added.
+
+![contextual_autoencoder](https://github.com/user-attachments/assets/91106d0d-da86-4f91-b7d8-db4a679a6292)
+
+Here a presentation illustrating some of the key results: https://docs.google.com/presentation/d/1uNlbAPi-_Sjb5JjfNdis1I3rWV5Bi7w2/edit?usp=sharing&ouid=114959095852310266125&rtpof=true&sd=true
+
+TODO 10/11/2024:
+- "Behavior" ---> i) chose two categories (3 and ...) ii) use the vanilla autoencoder to generate a dataset of inbetween stimuli with latent space interpolation (+ add noise) iii) build a decision-maker hooking a logistic regression unit to the latent space of the associative autoencoder iv) build psychometric curves from the performance of the decision-maker at different levels of interpolation (and/or noise) with and without context v) quantify the psychometric shift induced by the context
+- "Physiology" ---> i) do a sparse noise experiment in both modalities alone and together for the units in the latent space ii) quantify congruent / incongruent tuning and multisenory enhancement iii) try to reconstruct MEI via optimization
+- "Bayesian analysis": retrain another associative autoencoder with a bimodal prior (e.g. context is 50% of time on "3" and 50% on "4" ... sample from the latent space with and without context and do frequency histogram of all categories, is the one with context bimodal or it collapses to an inbetween blurred average digit?
+- Show it to collegues (Alessio, Sami, Davide, Oliviers etc...) and collect feedback ---> short pub (journal or ML conf paper)?
