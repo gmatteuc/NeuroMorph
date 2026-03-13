@@ -1,0 +1,19 @@
+# ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# ignore data and pretrained directories
+data/
+pretrained/
+output/
+
+# ignore other common files
+*.log
+*.tmp
+
+# ignore egg-info from editable installs
+*.egg-info/

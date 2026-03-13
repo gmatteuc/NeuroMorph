@@ -1,0 +1,451 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{natbib}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{authblk}
+\usepackage{lineno}
+
+\linenumbers
+
+% --- Metadata ---
+\title{A linear cross-modal projection in a denoising autoencoder approximates Bayesian cue integration at a fixed fraction of optimality}
+
+\author[1]{Giulio Matteucci}
+\affil[1]{Department of Otorhinolaryngology, Head and Neck Surgery, CHUV, University of Lausanne, Switzerland}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+\begin{abstract}
+How the brain combines expectations from prior experience with incoming sensory evidence is a central question in computational neuroscience.
+Bayesian frameworks have been highly successful in describing this integration, yet the neural mechanisms that implement approximate Bayesian inference remain debated.
+Here we show that a convolutional denoising autoencoder with a simple linear cross-modal projection learns to integrate contextual signals with visual evidence in a manner that is qualitatively Bayesian but quantitatively sub-optimal by a fixed factor.
+A context vector, simulating a secondary sensory modality, is paired with specific visual categories during unsupervised associative training on MNIST digits.
+At test time, context shifts the autoencoder's reconstructions toward the associated category, producing psychometric curve shifts analogous to those observed in multisensory perception.
+When a single context is ambiguously associated with two categories (50/50), the system produces bimodal --- not averaged --- categorical outputs, demonstrating that bimodal priors can emerge from a linear mechanism interacting with latent geometry.
+By fitting per-image sigmoidal decision functions and comparing them to the Bayesian-optimal prediction derived from the measured latent statistics, we find that the system operates at $27.9 \pm 5.4\%$ of Bayesian optimality.
+This ratio is remarkably invariant across all 45 digit-pair combinations and is uncorrelated with the separation between category centroids in latent space, revealing it as an architectural constant of the linear context projection rather than a task-dependent quantity.
+These results provide a mechanistic proof of concept for how simple feedforward cross-modal projections --- biologically plausible and requiring no explicit probabilistic computation --- can give rise to structured, approximately Bayesian perceptual inference.
+\end{abstract}
+
+\paragraph{Keywords:} multisensory integration, Bayesian inference, denoising autoencoder, cross-modal learning, contextual modulation, unsupervised learning
+
+% ============================================================
+\section{Introduction}
+
+Perception is not a passive reflection of sensory input but is strongly influenced by expectations distilled from prior experience \citep{knill2004bayesian, fiser2010statistically}.
+In natural environments, specific sensory signals often co-occur across modalities: the sight of a dog is accompanied by its bark, a glass shattering produces both a visual flash and a characteristic sound.
+These cross-modal associations are largely learned from experience and serve as priors that guide robust perception even when individual sensory channels are noisy or ambiguous \citep{noppeney2021perceptual, spence2011crossmodal}.
+
+The Bayesian framework provides a normative account of how the brain should combine prior expectations with sensory evidence \citep{knill2004bayesian}.
+In multisensory perception, cue integration experiments have shown that humans combine information from different modalities in a manner that is often close to statistically optimal \citep{ernst2002humans, alais2004ventriloquist}, weighting each cue by its reliability.
+However, sub-optimal integration is also commonly observed \citep{rahnev2011suboptimality, drugowitsch2016computational}, and the neural mechanisms that implement approximate Bayesian computation remain actively debated \citep{fiser2010statistically, pouget2013probabilistic}.
+
+A parallel line of inquiry has sought to understand these phenomena through the lens of artificial neural networks trained with unsupervised learning algorithms \citep{richards2019deep, matteucci2024unsupervised}.
+Deep networks trained to reconstruct or predict sensory inputs develop internal representations that capture the statistical structure of their training environment, much as sensory cortex does during development \citep{matteucci2020unsupervised, berkes2011spontaneous}.
+This makes them natural testbeds for theories of how experience shapes perception.
+
+Here we adopt this approach to investigate a specific question: \emph{when a neural network learns arbitrary cross-modal associations through unsupervised exposure, does the resulting context-dependent processing approximate Bayesian inference, and if so, to what degree?}
+
+We address this using a convolutional denoising autoencoder that receives two inputs: a noisy visual image (MNIST digit) and a contextual vector simulating a secondary sensory modality.
+During associative training, specific context signals are consistently paired with specific digit categories, allowing the network to learn cross-modal statistical regularities.
+At test time, we probe the network with heavily degraded visual inputs and measure how context modulates reconstruction, using an independent classifier to read out the network's categorical ``decisions.''
+
+We report three main findings.
+First, context induces systematic shifts in the network's reconstructions, producing psychometric curve displacements analogous to those reported in human multisensory experiments (Figure~\ref{fig:psychometric}).
+Second, when a single context signal is ambiguously associated with two categories (bimodal training), the network produces bimodal categorical outputs rather than a blurred average, demonstrating that bimodal priors can emerge from a simple linear projection interacting with the geometry of the learned latent space.
+Third, by systematically comparing the network's context-dependent decision functions to Bayesian-optimal predictions across all 45 possible digit-pair combinations, we find that the network operates at a fixed fraction ($\sim$28\%) of Bayesian optimality --- a ratio that is invariant to the specific categories and their separation in latent space.
+This last finding identifies the degree of Bayesian sub-optimality as an \emph{architectural} constant of the linear context projection, not a task-dependent quantity, providing a mechanistic account of how simple cross-modal wiring can give rise to structured but sub-optimal perceptual inference.
+
+
+% ============================================================
+\section{Methods}
+
+\subsection{Model architecture}
+
+The model is a convolutional denoising autoencoder consisting of an encoder $f_\theta$ and a decoder $g_\phi$ (Figure~\ref{fig:architecture}).
+
+\paragraph{Encoder.}
+The encoder consists of two convolutional layers (Conv2d with $C$ and $2C$ filters, kernel size 4, stride 2) followed by ReLU activations, a flattening operation, and a fully connected layer mapping to a $D$-dimensional latent space.
+Critically, the encoder also receives a $K$-dimensional context vector $\mathbf{c}$, which is projected into the same latent space via a linear layer $W_c \in \mathbb{R}^{K \times D}$.
+The final latent representation is the sum of the visual and contextual components:
+\begin{equation}
+    \mathbf{z} = f_\text{vis}(\mathbf{x}) + W_c \mathbf{c}
+    \label{eq:latent}
+\end{equation}
+where $f_\text{vis}(\mathbf{x})$ is the visual latent vector and $W_c \mathbf{c}$ is the context projection.
+This additive architecture is the simplest possible form of cross-modal integration and is the primary object of analysis in this work.
+
+\paragraph{Decoder.}
+The decoder maps the latent vector $\mathbf{z}$ back to image space through a fully connected layer, reshaping, and two transposed convolutional layers (ConvTranspose2d), producing a $28 \times 28$ reconstruction with a $\tanh$ output activation.
+Importantly, the decoder receives only the latent vector and has no direct access to the context.
+
+\paragraph{Hyperparameters.}
+Unless otherwise stated, we use base channel capacity $C = 16$, latent dimensionality $D = 32$, and context dimensionality $K = 10$.
+
+\subsection{Training}
+
+\paragraph{Data.}
+We use the MNIST dataset of handwritten digits \citep{lecun1998gradient}, with images normalized to $[-1, 1]$.
+Noise corruption combines pixel-wise Gaussian noise with spatially correlated noise (Gaussian-filtered with $\sigma = 2.0$, kernel size 11), both scaled by a noise level parameter $\eta$.
+
+\paragraph{Phase 1: Baseline denoising.}
+The autoencoder is first trained for 50 epochs on the standard denoising objective with training noise level $\eta_\text{train} = 0.5$:
+\begin{equation}
+    \mathcal{L}_\text{baseline} = \mathbb{E}\left[\| g_\phi(f_\theta(\tilde{\mathbf{x}}, \mathbf{c}_0)) - \mathbf{x} \|^2\right]
+\end{equation}
+where $\tilde{\mathbf{x}}$ is the noisy input and $\mathbf{c}_0$ is a noise-only context vector (no signal).
+During this phase, the network learns general-purpose denoising without any category--context association.
+All parameters are trained with Adam \citep{kingma2015adam} at learning rate $10^{-3}$.
+
+\paragraph{Phase 2: Associative training.}
+Starting from the baseline checkpoint, we freeze all network parameters except the context projection layer $W_c$ and train for 100 additional epochs.
+During this phase, whenever an image belongs to a target category, the context vector carries a signal on a designated channel:
+\begin{equation}
+    c_k = \begin{cases}
+        s + \epsilon, & \text{if } k = k^* \text{ and image} \in \text{target category} \\
+        \epsilon, & \text{otherwise}
+    \end{cases}
+\end{equation}
+where $s = 1.0$ is the signal level, $\epsilon \sim \mathcal{N}(0, 0.1)$ is context noise, and $k^*$ is the designated context channel.
+This mimics a natural environment in which a secondary sensory signal (e.g., a sound) co-occurs with specific visual features.
+
+Only $W_c$ is updated during this phase, ensuring that the visual representations remain fixed and any behavioral effects are attributable solely to the learned context projection.
+
+\paragraph{Unimodal association.}
+For the representational and psychometric analyses (Sections~\ref{sec:representational}--\ref{sec:psychometric}), a single context channel is associated with a single target digit (digit ``3'').
+
+\paragraph{Bimodal association.}
+For the Bayesian analysis (Section~\ref{sec:bayesian}), a single context channel is associated with \emph{two} digit categories simultaneously (50\% of presentations paired with digit $a$, 50\% with digit $b$), creating an ambiguous cross-modal statistic.
+
+\subsection{Readout classifier}
+
+To evaluate the categorical content of the autoencoder's reconstructions, we train an independent 10-class CNN classifier on clean MNIST images (test accuracy: 99.2\%).
+This classifier serves as a proxy for perceptual categorization, analogous to a downstream decision-making circuit that reads out the autoencoder's output.
+Critically, the classifier is never trained on reconstructed images and is not part of the autoencoder's training loop.
+
+\subsection{Corruption test protocol}
+\label{sec:corruption_protocol}
+
+To probe context-dependent processing under high uncertainty, we feed test images corrupted with extreme noise ($\eta_\text{test} = 1.0$, double the training level) through the autoencoder with and without context, then classify the reconstructions.
+This simulates a highly degraded sensory environment where the visual evidence alone is insufficient for reliable categorization, and the context must contribute to disambiguation.
+
+\subsection{Bayesian optimality analysis}
+\label{sec:bayesian_methods}
+
+To quantify the degree to which the autoencoder's context-dependent behavior approximates Bayesian inference, we develop the following analysis pipeline.
+
+\paragraph{Latent projection.}
+For each digit pair $(a, b)$, we compute the mean latent vectors (centroids) $\boldsymbol{\mu}_a$ and $\boldsymbol{\mu}_b$ from clean test images encoded without context.
+We define the decision axis as $\hat{\mathbf{d}} = (\boldsymbol{\mu}_a - \boldsymbol{\mu}_b) / \|\boldsymbol{\mu}_a - \boldsymbol{\mu}_b\|$ and project each noisy image's latent representation onto this axis relative to the midpoint $\mathbf{m} = (\boldsymbol{\mu}_a + \boldsymbol{\mu}_b)/2$:
+\begin{equation}
+    d_i = (\mathbf{z}_i - \mathbf{m}) \cdot \hat{\mathbf{d}}
+\end{equation}
+
+\paragraph{Empirical decision function.}
+Among test images that the classifier assigns to category $a$ or $b$ after context-biased reconstruction, we compute the proportion classified as $a$ in bins along the decision axis, yielding an empirical $P(\to a \mid d)$.
+
+\paragraph{Sigmoid fit.}
+We fit a 4-parameter sigmoid to the empirical decision function:
+\begin{equation}
+    P(\to a \mid d) = \gamma + (\delta - \gamma) \cdot \sigma(\beta(d - \alpha))
+    \label{eq:sigmoid}
+\end{equation}
+where $\alpha$ is the midpoint, $\beta$ is the slope, $\gamma$ and $\delta$ are the lower and upper asymptotes, and $\sigma(\cdot)$ is the logistic function.
+
+\paragraph{Bayesian-optimal prediction.}
+Under the assumption that the within-class latent distributions along the decision axis are Gaussian with equal variance $\sigma_n^2$, the log-likelihood ratio for category $a$ vs.\ $b$ given projection $d$ is:
+\begin{equation}
+    \log \frac{P(d \mid a)}{P(d \mid b)} = \frac{\Delta\mu}{\sigma_n^2} \cdot d
+\end{equation}
+where $\Delta\mu = \|\boldsymbol{\mu}_a - \boldsymbol{\mu}_b\|$ is the centroid separation.
+Including the context shift $c_\perp$ (the learned context vector projected onto the decision axis), the Bayesian-optimal decision function is:
+\begin{equation}
+    P_\text{opt}(\to a \mid d) = \sigma\!\left(\beta_\text{opt} \cdot (d + c_\perp)\right), \quad \beta_\text{opt} = \frac{\Delta\mu}{\sigma_n^2}
+    \label{eq:bayesian_optimal}
+\end{equation}
+
+\paragraph{Slope ratio.}
+The key metric is the \emph{slope ratio} $\rho = \beta_\text{fitted} / \beta_\text{opt}$, which quantifies how closely the system's actual discriminability matches the Bayesian ideal.
+A ratio of 1 indicates optimal integration; values below 1 indicate sub-optimal (under-confident) integration.
+
+
+% ============================================================
+\section{Results}
+
+\subsection{Context reshapes latent representations toward the associated category}
+\label{sec:representational}
+
+We first verified that the learned context projection systematically alters the autoencoder's internal representations.
+After associative training pairing context channel 2 with digit ``3,'' we encoded noisy test images ($\eta = 1.0$) with and without context and visualized the resulting latent representations using t-SNE (Figure~\ref{fig:tsne}).
+
+Without context, the latent representations of noisy images form partially overlapping clusters corresponding to the 10 digit classes.
+With context, all representations shift toward the ``3'' cluster, with the magnitude of shift depending on the original digit's latent proximity to digit 3 (Figure~\ref{fig:tsne}, bottom right).
+This confirms that the linear context projection $W_c \mathbf{c}$ adds a fixed vector in latent space that displaces all representations in the direction of the associated category, consistent with the additive architecture of Equation~\ref{eq:latent}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../output/01_tsne_analysis.png}
+    \caption{\textbf{Context shifts latent representations toward the associated category.}
+    \textbf{Top left:} t-SNE visualization of noisy image latent codes without context, colored by digit class.
+    \textbf{Top right:} Same images with context (associated with digit 3).
+    \textbf{Bottom left:} Flow field showing the shift in t-SNE space induced by context.
+    \textbf{Bottom right:} Change in latent distance to the digit-3 centroid for each class --- all digits move closer, with the magnitude reflecting their original proximity.}
+    \label{fig:tsne}
+\end{figure}
+
+\subsection{Context shifts psychometric curves}
+\label{sec:psychometric}
+
+To test whether the representational shift translates into a behavioral effect analogous to those observed in multisensory perception, we constructed psychometric curves for digit categorization.
+Interpolated stimuli were generated along the latent axis connecting two digit categories (e.g., ``3'' vs.\ ``4''), decoded, corrupted with noise, re-encoded, and classified by the readout classifier.
+This produces a psychometric function relating stimulus ambiguity to the proportion of ``3'' responses.
+
+Context consistently shifted the psychometric curve toward the associated category, lowering the point of subjective equality (PSE) across multiple digit pairs (Figure~\ref{fig:psychometric}).
+For the 3-vs-4 pair, the PSE shifted from 0.403 (no context) to 0.280 (with context), a significant displacement confirmed by bootstrap confidence intervals ($n = 1000$ resamples).
+Similar shifts were observed for 3-vs-5 and 3-vs-8, demonstrating that the effect generalizes across comparison categories.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[b]{0.58\textwidth}
+        \includegraphics[width=\textwidth]{../output/02_psychometric_3_vs_4.png}
+        \caption{Psychometric curves for 3 vs 4.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.38\textwidth}
+        \includegraphics[width=\textwidth]{../output/02_pse_shift_summary.png}
+        \caption{PSE shift summary.}
+    \end{subfigure}
+    \caption{\textbf{Context shifts psychometric curves toward the associated digit.}
+    \textbf{(a)} Proportion of ``3'' responses as a function of stimulus clarity ($\lambda$) along the 3-to-4 interpolation axis, with (yellow) and without (white) context. The PSE (vertical lines with bootstrap CIs) shifts leftward with context.
+    \textbf{(b)} PSE shift (context minus no-context) for three digit pairs, all showing significant negative shifts (toward digit 3). Error bars: bootstrap 95\% CIs.}
+    \label{fig:psychometric}
+\end{figure}
+
+\subsection{Bimodal context produces bimodal --- not averaged --- outputs}
+
+Having established that context biases reconstruction, we asked what happens when a single context signal is ambiguously associated with two categories.
+If the autoencoder computes a weighted average, the output should converge to a blurred intermediate representation.
+If, instead, the context acts as a genuine categorical prior, the output distribution should be bimodal.
+
+As a positive control, we first trained a model where two \emph{separate} context channels were each associated with one digit (channel 2 $\to$ digit 3; channel 3 $\to$ digit 4).
+At test time, each channel selectively drove reconstructions toward its associated category, confirming that the autoencoder can learn distinct cross-modal associations (Figure~\ref{fig:exp1_histogram}).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{../output/03_exp1_histogram.png}
+    \caption{\textbf{Two-channel context control.}
+    Classification distribution of reconstructions from heavily noisy images ($\eta = 1.0$).
+    Without context (white), the classifier distributes responses broadly.
+    Context A (purple) drives nearly all reconstructions to digit 3; context B (orange) drives them to digit 4.
+    This confirms the network can learn specific context--category associations.}
+    \label{fig:exp1_histogram}
+\end{figure}
+
+We then trained a new model (from the same baseline) where a single context channel was paired equally with both digits 3 and 4 (50/50 bimodal association).
+At test time, this ambiguous context produced a clearly bimodal classification distribution, with pronounced peaks at both associated digits and suppression of other categories (Figure~\ref{fig:exp2}).
+The combined mass on the two target categories increased from 23\% (no context) to 73\% (with context), with a balance ratio of 0.55 between the two modes.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[b]{\textwidth}
+        \includegraphics[width=\textwidth]{../output/03_exp2_samples.png}
+        \caption{Sample reconstructions with bimodal context.}
+    \end{subfigure}
+    \vspace{0.3cm}
+    \begin{subfigure}[b]{0.85\textwidth}
+        \includegraphics[width=\textwidth]{../output/03_exp2_histogram.png}
+        \caption{Classification distribution.}
+    \end{subfigure}
+    \caption{\textbf{Bimodal context produces bimodal categorical outputs.}
+    \textbf{(a)} Top to bottom: original clean images, noisy inputs ($\eta = 1.0$), reconstructions without context, reconstructions with bimodal context (50\% digit-3 / 50\% digit-4 association). Context visibly biases reconstructions toward 3- and 4-like shapes.
+    \textbf{(b)} Left: full classification histogram showing bimodal peaks at digits 3 and 4 with context (pink) vs.\ flat baseline (white). Right: combined mass on target digits vs.\ others.}
+    \label{fig:exp2}
+\end{figure}
+
+This bimodality is not implemented by any probabilistic mechanism in the network.
+Rather, it emerges from the interaction between the fixed context shift vector $W_c \mathbf{c}$ and the geometry of the latent space: the context displaces latent codes into a region where the decoder's nearest category attractors are the two associated digits.
+Which specific attractor wins depends on the original image's latent position, producing a \emph{basin of attraction} structure.
+
+\subsection{Basin of attraction analysis reveals sigmoidal category boundaries}
+
+To characterize the basin structure, we broke down the classification results by the original digit identity of each test image.
+Digits were ordered by their latent similarity to digit 3 versus digit 4, as measured by the relative Euclidean distance of their centroids.
+
+With context, the proportion classified as digit 3 vs.\ 4 follows a smooth sigmoidal transition along this ordering (Figure~\ref{fig:basin}): digits whose latent centroids are closer to 3 are preferentially reconstructed as 3, those closer to 4 as 4, and digits at intermediate latent positions show mixed outcomes.
+Without context, this structure is absent, confirming that the sigmoidal transition is driven by the context-induced shift.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../output/03_exp2_basin_analysis.png}
+    \caption{\textbf{Basin of attraction analysis.}
+    Stacked bar charts showing the proportion of noisy test images classified as digit 3 (pink), digit 4 (cyan), or other (gray), broken down by original digit class.
+    Digits are ordered by their latent proximity to digit 3 vs.\ 4 (left: most 4-like; right: most 3-like).
+    \textbf{Left:} With bimodal context --- a clear sigmoidal transition from 4-dominated to 3-dominated.
+    \textbf{Right:} Without context --- no systematic pattern, confirming the transition is context-driven.}
+    \label{fig:basin}
+\end{figure}
+
+\subsection{The autoencoder operates at $\sim$28\% of Bayesian optimality}
+\label{sec:bayesian}
+
+The sigmoidal transition in Figure~\ref{fig:basin} suggests that the network's context-dependent behavior may be well described by a Bayesian decision model.
+To test this quantitatively, we applied the analysis pipeline described in Section~\ref{sec:bayesian_methods} to the digit-3-vs-4 pair.
+
+Figure~\ref{fig:sigmoid} shows the result.
+The empirical $P(\to 3 \mid d)$ closely follows a sigmoid (Eq.~\ref{eq:sigmoid}), confirming that the network's behavior is well described by a decision function operating on the latent projection.
+However, the fitted sigmoid (slope $\beta_\text{fitted} = 3.84$) is substantially shallower than the Bayesian-optimal prediction (slope $\beta_\text{opt} = 11.97$), yielding a slope ratio of $\rho = 0.32$.
+The network transitions between categories in the correct direction and with the correct sigmoidal shape, but with less discriminability than a Bayesian ideal observer would exhibit given the same latent statistics.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../output/03_bayesian_sigmoid.png}
+    \caption{\textbf{Bayesian optimality analysis for digits 3 vs.\ 4.}
+    Each point represents the observed probability of being classified as digit 3, binned by latent projection $d$ onto the 3--4 axis (point size proportional to bin count).
+    Dashed pink: fitted 4-parameter sigmoid.
+    Solid cyan: Bayesian-optimal prediction from measured latent geometry ($\Delta\mu$, $\sigma_n^2$, and context shift).
+    The fitted sigmoid is substantially shallower than optimal, indicating the system is under-confident relative to the Bayesian ideal.
+    Inset: fitted and Bayesian parameters.}
+    \label{fig:sigmoid}
+\end{figure}
+
+\subsection{The slope ratio is an architectural constant across all 45 digit pairs}
+
+A key question is whether the $\sim$28\% optimality observed for digits 3 vs.\ 4 is specific to this pair or reflects a general property of the architecture.
+To test this, we trained separate bimodal-context models for all $\binom{10}{2} = 45$ digit pairs, each starting from the same baseline checkpoint and using an identical training protocol.
+For each pair, we computed the slope ratio $\rho = \beta_\text{fitted} / \beta_\text{opt}$.
+
+The slope ratio was remarkably invariant across pairs: $\rho = 0.279 \pm 0.054$ (mean $\pm$ SD; $n = 45$; Figure~\ref{fig:all_pairs}a,b).
+Critically, the slope ratio showed no significant correlation with centroid separation $\Delta\mu$ (Figure~\ref{fig:all_pairs}c), which varied substantially across pairs (range: 6--14 latent units).
+This independence demonstrates that the $\sim$28\% optimality is not a consequence of specific inter-category distances but rather an intrinsic property of the linear context projection architecture.
+
+In contrast to the stable slope ratio, the bimodality of the output distribution varied substantially across pairs (balance ratio range: 0.08--0.99; Figure~\ref{fig:all_pairs}a).
+Of 45 pairs, 18 produced balanced bimodal outputs (balance ratio $> 0.5$), 27 produced skewed distributions, and none produced blurred averages.
+This confirms that whether context creates a bimodal or skewed prior depends on the pair-specific latent geometry, while \emph{how efficiently} context integrates with visual evidence is architecture-determined.
+
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth]{../output/03_all_pairs_summary.png}
+    \caption{\textbf{All-pairs Bayesian analysis summary.}
+    \textbf{Top left:} Slope ratio $\rho$ for each digit pair, displayed as a symmetric $10 \times 10$ matrix. Values are remarkably uniform (0.18--0.41), with no systematic dependence on digit identity.
+    \textbf{Top right:} Bimodality balance ratio (min/max of target masses). In contrast to the slope ratio, balance varies widely --- some pairs are nearly symmetric (yellow), others strongly skewed (dark).
+    \textbf{Bottom left:} Sigmoid midpoint shift. The diverging colormap (red/blue) shows that midpoint biases are pair-specific and antisymmetric, reflecting the asymmetric geometry of MNIST digit representations.
+    \textbf{Bottom right:} Slope ratio vs.\ centroid separation ($\Delta\mu$), colored by balance ratio. The flat distribution confirms that Bayesian optimality is independent of inter-category distance.}
+    \label{fig:all_pairs}
+\end{figure}
+
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth]{../output/03_all_pairs_distributions.png}
+    \caption{\textbf{Distribution of Bayesian optimality across all 45 digit pairs.}
+    \textbf{Top left:} Distribution of bimodality balance ratios (18/45 pairs exceed the 0.5 threshold).
+    \textbf{Top right:} Distribution of slope ratios, tightly concentrated around $\rho = 0.279$ (SD = 0.054).
+    \textbf{Bottom left:} Average fitted sigmoid (pink dashed, mean slope = 2.88) vs.\ average Bayesian-optimal sigmoid (cyan solid, mean slope = 10.39), computed by centering each pair's curve at midpoint = 0. Shaded regions: $\pm$1 SD. The fitted curve is consistently shallower.
+    \textbf{Bottom right:} Distribution of sigmoid midpoints, centered near zero (mean = $-0.36$), confirming that individual pair biases reflect MNIST geometry rather than systematic artifacts.}
+    \label{fig:distributions}
+\end{figure}
+
+\subsection{Latent similarity structure reflects visual similarity}
+
+The analyses above rely on the latent geometry learned by the autoencoder during baseline training.
+To characterize this geometry, we computed pairwise distances between the 10 digit-class centroids and applied hierarchical clustering (Figure~\ref{fig:rdm}).
+
+The resulting similarity structure is visually intuitive: digits with similar stroke geometry cluster together (e.g., \{4, 9, 7\} as angular strokes; \{3, 5, 8\} as curvy forms; \{0, 6\} as round shapes), while the visually simplest digit (1) is most isolated.
+This structure is learned purely from unsupervised reconstruction --- the autoencoder is never told about digit identity --- and it determines both the basin-of-attraction patterns and the pair-specific biases observed in the Bayesian analysis.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{../output/03_centroid_rdm_cosine.png}
+    \caption{\textbf{Latent centroid similarity matrix.}
+    Pairwise cosine distances between digit-class centroids in the autoencoder's latent space, reordered by hierarchical clustering (average linkage).
+    The clustering captures intuitive visual similarity: angular digits (1, 7, 4, 9) group together, curvy digits (8, 3, 5) form a separate cluster, and round digits (0, 6) are neighbors.
+    This structure, learned purely from reconstruction, determines the basin boundaries and pair-specific midpoint biases in the Bayesian analysis.}
+    \label{fig:rdm}
+\end{figure}
+
+
+% ============================================================
+\section{Discussion}
+
+We have shown that a convolutional denoising autoencoder with a linear cross-modal context projection learns to integrate contextual signals with visual evidence in a manner that is qualitatively Bayesian --- producing sigmoidal decision functions, psychometric curve shifts, and bimodal categorical priors --- but quantitatively sub-optimal by a fixed factor of $\sim$28\%.
+This factor is invariant across all 45 digit-pair combinations and independent of the separation between category representations in latent space, identifying it as an architectural property of the linear projection rather than a task-dependent quantity.
+
+\subsection{Why linear context integration is approximately Bayesian}
+
+The theoretical basis for this result is straightforward.
+Under the additive architecture of Equation~\ref{eq:latent}, the context contributes a fixed vector $W_c \mathbf{c}$ in latent space.
+If the within-class latent distributions along the decision axis are approximately Gaussian with equal variance, then the log-posterior ratio for category $a$ vs.\ $b$ is linear in the projection $d$, and the optimal decision boundary is sigmoidal.
+The context shift $c_\perp$ on this axis acts as an additive bias term, equivalent to a log-prior ratio in Bayesian terminology.
+Thus, the additive integration of visual evidence and context shift \emph{is} Bayesian integration, under these distributional assumptions.
+
+The sub-optimality (28\% of the optimal slope) arises because the context projection $W_c$ is not calibrated to produce a shift of exactly the right magnitude.
+During associative training, $W_c$ is optimized to minimize reconstruction error for the paired categories, not to maximize classification accuracy.
+The resulting context shift is in the correct direction but of insufficient magnitude relative to the latent geometry --- the system is ``under-confident'' in its use of context.
+
+\subsection{Bimodality without probabilistic machinery}
+
+A notable finding is that bimodal categorical outputs emerge from a network with no explicit probabilistic computation.
+The bimodality arises from the interaction between the context-induced latent shift and the nonlinear decoder: the context displaces latent codes into a region where two category attractors compete, and the decoder resolves this competition based on which attractor is locally dominant.
+This provides a concrete mechanism by which simple cross-modal projections --- analogous to feedforward synaptic connections between sensory areas --- can implement what functionally appears as a bimodal prior, without requiring mixture models or explicit probability distributions.
+
+\subsection{Relation to multisensory perception}
+
+Our findings parallel several key observations in the multisensory perception literature.
+The psychometric curve shifts (Figure~\ref{fig:psychometric}) mirror those reported in human audiovisual \citep{alais2004ventriloquist} and visuo-haptic \citep{ernst2002humans} cue integration experiments.
+The sub-optimal but structured integration is consistent with a growing body of evidence that human multisensory integration is near-Bayesian but systematically sub-optimal \citep{rahnev2011suboptimality, drugowitsch2016computational}.
+
+Our model suggests a specific mechanistic explanation for this sub-optimality: if cross-modal influences are mediated by feedforward projections that add a fixed bias in representational space, the resulting integration will be qualitatively Bayesian (sigmoidal, evidence-weighted) but the slope of the decision function will depend on the magnitude of the learned projection, which is set by the statistics of the training environment (specifically, the reconstruction loss) rather than by the ideal Bayesian criterion.
+
+\subsection{Implications for the MUSIC hypothesis}
+
+This work serves as a computational companion to the MUSIC (Multisensory Unsupervised Statistical Inference in Cortical circuits) project, which tests whether early-life audiovisual exposure shapes cortical circuits and perception.
+Our results generate several testable predictions:
+\begin{enumerate}
+    \item Auditory context associated with specific visual features during development should shift psychometric curves for visual discrimination, with the magnitude of shift determined by the learned cross-modal projection.
+    \item If the same auditory cue is associated with two different visual features (e.g., two orientations), the resulting perceptual distribution should be bimodal rather than a blurred average.
+    \item The degree of Bayesian sub-optimality should be relatively constant across different visual feature pairs, reflecting the architecture of the cross-modal projection rather than the specific features involved.
+\end{enumerate}
+
+\subsection{Limitations and future directions}
+
+Several limitations of the current work should be noted.
+First, we use MNIST digits, which constitute a simplified and discrete visual domain.
+It remains to be tested whether the invariant slope ratio generalizes to richer visual representations and continuous feature spaces.
+Second, the $\sim$28\% optimality is specific to the current architecture (capacity $C = 16$, latent dimensionality $D = 32$, context dimensionality $K = 10$, training noise $\eta = 0.5$).
+A systematic exploration of how this constant depends on architectural parameters would strengthen the claim that it is a fundamental property of linear additive integration.
+Third, the theoretical result that additive shifts implement Bayesian integration under Gaussian assumptions is well established in the cue combination literature \citep{ernst2002humans, ma2006bayesian}.
+The present contribution lies in demonstrating that this integration \emph{emerges} in a trained neural network and in quantifying the optimality gap.
+
+Future work should explore non-linear context integration mechanisms (multiplicative gating, attention), the effect of varying the noise regime, and extensions to naturalistic stimuli and continuous feature spaces.
+Critically, the predictions derived here should be tested against behavioral and neural data from the MUSIC project's audiovisual rearing experiments.
+
+
+% ============================================================
+\section*{Code and data availability}
+
+All code, trained models, and analysis notebooks are available at: \url{https://github.com/gmatteucci/NeuroMorph}.
+The project is implemented in Python using PyTorch and is installable as the \texttt{neuromorph} package.
+
+\section*{Acknowledgments}
+
+This work is supported by the MUSIC ERC Starting Grant.
+
+
+% ============================================================
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\end{document}

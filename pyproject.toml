@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuromorph"
+version = "0.1.0"
+description = "Convolutional denoising autoencoder with contextual input for multisensory association learning"
+requires-python = ">=3.9"
+dependencies = [
+    "torch",
+    "torchvision",
+    "numpy",
+    "matplotlib",
+    "scikit-learn",
+    "scipy",
+]
+
+[project.scripts]
+neuromorph-train = "scripts.train:main"
+
+[tool.setuptools.packages.find]
+include = ["neuromorph*"]

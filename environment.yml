@@ -1,0 +1,17 @@
+name: neuromorph
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - --extra-index-url https://download.pytorch.org/whl/cu124
+    - torch>=2.0
+    - torchvision
+    - numpy
+    - matplotlib
+    - scikit-learn
+    - scipy
+    - jupyter
+    - ipykernel
+    - -e .
